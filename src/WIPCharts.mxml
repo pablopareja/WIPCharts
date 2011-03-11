@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" 
+					   xmlns:s="library://ns.adobe.com/flex/spark" 
+					   xmlns:mx="library://ns.adobe.com/flex/mx"
+					   creationComplete="onCreationComplete()">
+	<s:layout>
+		<s:VerticalLayout paddingLeft="10" paddingRight="10" paddingTop="10" 
+						  paddingBottom="10"/>
+	</s:layout>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<fx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.events.ListEvent;
+			
+			
+			protected var file:File  = null;
+			
+			[Bindable]
+			protected var xml:XML = null;
+			protected var regionA:XML = null;
+			
+			[Bindable]
+			protected var sourceColumnChart:ArrayCollection = new ArrayCollection();
+			[Bindable]
+			protected var sourceLineChart:ArrayCollection = new ArrayCollection();
+			
+			/*
+			*	ON CREATION COMPLETE
+			*/
+			protected function onCreationComplete():void
+			{
+				file = new File();
+				file.addEventListener(Event.SELECT,onSelectFile);
+				
+			}
+			
+			
+			protected function onSelectFile(event:Event):void{
+				
+				selectedFileTextInput.text = file.nativePath;
+				
+				var fileStream:FileStream = new FileStream();
+				fileStream.open(file, FileMode.READ);
+				
+				var fileContents:String = fileStream.readUTFBytes(fileStream.bytesAvailable);
+				fileStream.close();
+				
+				xml = new XML(fileContents);
+				
+				//obtencion y seteo de datos de la region a
+				regionA = xml.wip_result[0].region_a[0].region[0];
+				regionAIdLabel.text = regionA.id.toString();
+				regionASequenceTextArea.text = regionA.sequence.toString();
+				
+				updateColumnChart();
+				updateLineChart();
+								
+				
+			}
+			
+			protected function updateLineChart():void{
+				//First we clear the collection
+				sourceLineChart.removeAll();
+				
+				var percentages:Array = new Array();
+				for(var i:int=0;i<100;i++){
+					percentages.push(0);
+				}
+				
+				var wipResults:XMLList = xml.wip_result;
+				
+				for each(var result:XML in wipResults){
+					var value:Number = Number(result.statistic_value) * 100;
+					var index:int = Math.floor(value);
+					percentages[index] = percentages[index] + 1;
+				}
+					
+				for(var ii:int=0;ii<percentages.length;ii++){
+					var countt:int = percentages[ii];					
+					sourceLineChart.addItem({percentage:ii,count:countt});
+				}
+				
+			}
+			
+			protected function updateColumnChart():void{
+				//First we clear the collection
+				sourceColumnChart.removeAll();
+				
+				var sequence:String = regionASequenceTextArea.text;
+				
+				var wipResults:XMLList = xml.wip_result;
+				
+				var array:Array = new Array();
+				for(var i:int=0;i<sequence.length;i++){
+					array.push(0);
+				}
+				
+				for each(var result:XML in wipResults){
+					for each(var wipPosition:XML in result.positions.wip_position){
+						//Alert.show(wipPosition.toXMLString());
+						var l:int = parseInt(wipPosition.word_length);
+						var patternPosition:int = parseInt(wipPosition.pattern_position);
+						patternPosition--;//xq no esta en coordenadas de ordenadores
+						for(var j:int=0;j<l;j++){
+							array[patternPosition+j] += 1;
+						}
+					}					
+				}
+				
+				for(var ii:int=0;ii<array.length;ii++){
+					var f:int = array[ii];
+					var pos:String = ii + "\n" + sequence.charAt(ii);
+					sourceColumnChart.addItem({position:pos,frequency:f});
+				}
+				
+			}
+			
+			
+			
+			protected function browseButtonMuestra1_clickHandler(event:MouseEvent):void
+			{
+				file.browse([new FileFilter("archivos xml: ","*.xml")]);
+			}
+			
+			
+			protected function resetZoomButton_clickHandler(event:MouseEvent):void
+			{
+				columnChart.width = columnChartPanel.width;
+				columnChart.height = columnChartPanel.height;
+			}
+			protected function zoomInButton_clickHandler(event:MouseEvent):void
+			{
+				columnChart.width += columnChart.width * 0.2;
+			}
+			protected function zoomOutButton_clickHandler(event:MouseEvent):void
+			{
+				columnChart.width -= columnChart.width * 0.2;
+			}		
+
+			protected function zoomInButtonLineChart_clickHandler(event:MouseEvent):void
+			{
+				lineChart.width += lineChart.width * 0.2;
+			}
+			protected function resetZoomButtonLineChart_clickHandler(event:MouseEvent):void
+			{
+				lineChart.width = lineChartPanel.width;
+				lineChart.height = lineChartPanel.height;
+			}
+			protected function zoomOutButtonLineChart_clickHandler(event:MouseEvent):void
+			{
+				lineChart.width -= lineChart.width * 0.2;
+			}
+
+		]]>
+	</fx:Script>	
+	<s:VGroup left="10" top="10" bottom="10" right="10" width="100%" height="100%">
+		<s:HGroup verticalAlign="middle" width="100%">
+			<mx:Label text="File :" fontWeight="bold"/>
+			<mx:TextInput width="100%" editable="false" id="selectedFileTextInput"/>
+			<mx:Button label="Examinar" id="browseButtonMuestra1" click="browseButtonMuestra1_clickHandler(event)"/>
+		</s:HGroup>
+		<s:HGroup width="100%" verticalAlign="middle">
+			<s:Label text="Region A:" fontWeight="bold"/>
+			<s:Label text="&#xd;" id="regionAIdLabel"/>
+		</s:HGroup>
+		<s:TextArea width="100%" height="100" id="regionASequenceTextArea"/>
+		<mx:TabNavigator id="tabNavigator" width="100%" height="100%">
+			<mx:VBox width="100%" height="100%" label="Words chart">
+				<mx:Panel width="100%" height="100%" layout="horizontal"
+						  horizontalScrollPolicy="on" id="columnChartPanel">
+					<mx:ColumnChart id="columnChart" 
+									dataProvider="{sourceColumnChart}" 
+									showDataTips="true"							 
+									height="100%"
+									width="100%"
+									selectionMode="single">
+						<mx:horizontalAxis>
+							<mx:CategoryAxis 
+								id="categoryAxis" 
+								dataProvider="{sourceColumnChart}" 
+								categoryField="position"
+								/>	
+						</mx:horizontalAxis>
+						<mx:series>
+							<mx:ColumnSeries 
+								id="barSeriesMuestra1"
+								yField="frequency" 
+								xField="position" 
+								displayName="frequency"
+								/>	
+						</mx:series>
+					</mx:ColumnChart>			
+				</mx:Panel>		
+				<s:HGroup width="100%">
+					<mx:Button label="Zoom out" id="zoomOutButton" click="zoomOutButton_clickHandler(event)"/>
+					<mx:Button label="Reset zoom" id="resetZoomButton" click="resetZoomButton_clickHandler(event)"/>
+					<mx:Button label="Zoom in" id="zoomInButton" click="zoomInButton_clickHandler(event)"/>
+				</s:HGroup>
+			</mx:VBox>				
+			<mx:VBox label="Percentages chart">
+				<mx:Panel width="100%" height="100%" layout="horizontal"
+						  horizontalScrollPolicy="on" id="lineChartPanel">
+					<mx:LineChart id="lineChart"  width="100%" height="100%"
+								  dataProvider="{sourceLineChart}"
+								  showDataTips="true">
+						<mx:horizontalAxis>
+							<mx:CategoryAxis 
+								dataProvider="{sourceLineChart}" 
+								categoryField="percentage"
+								/>
+						</mx:horizontalAxis>
+						<mx:series>
+							<mx:LineSeries 
+								yField="count" 
+								displayName="Count"
+								/>
+						</mx:series>
+					</mx:LineChart>			
+				</mx:Panel>		
+				<s:HGroup width="100%">
+					<mx:Button label="Zoom out" id="zoomOutButtonLineChart"  click="zoomOutButtonLineChart_clickHandler(event)"/>
+					<mx:Button label="Reset zoom" id="resetZoomButtonLineChart"  click="resetZoomButtonLineChart_clickHandler(event)"/>
+					<mx:Button label="Zoom in" id="zoomInButtonLineChart"  click="zoomInButtonLineChart_clickHandler(event)"/>
+				</s:HGroup>
+			</mx:VBox>
+		</mx:TabNavigator>
+		
+	</s:VGroup>
+</s:WindowedApplication>

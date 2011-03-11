@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:TitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				xmlns:mx="library://ns.adobe.com/flex/mx" 
+				layout="absolute" width="950" height="700"
+				showCloseButton="true"
+				close="titlewindow1_closeHandler(event)" title="Sequence words viewer" 
+				paddingLeft="10" paddingRight="10" paddingTop="10" paddingBottom="10" xmlns:s="library://ns.adobe.com/flex/spark">
+	<fx:Script>
+		<![CDATA[
+			import mx.containers.HBox;
+			import mx.events.CloseEvent;
+			import mx.events.ScrollEvent;
+			
+			
+			protected var sequence:String = "";
+			protected var results:XMLList = null;
+			protected var arrayLabels:Array = new Array();
+			 
+			protected const ROWS_BACKGROUND_COLOR:String = "#F8F8D9";
+			protected const LABEL_HEIGHT:Number = 20;
+			
+
+			protected function titlewindow1_closeHandler(event:CloseEvent):void
+			{
+				visible = false;
+			}
+			
+			
+			public function setSequenceAndWipPositions(seq:String,wipResults:XMLList):void{
+				sequence = seq;
+				results = wipResults;
+				
+				sequenceTextInput.text = sequence;
+				
+				var currentY:int = 0;
+				
+				for(var i:int=0;i<wipResults.length();i++){
+					
+					var currentWipResult:XML = wipResults[i];
+					
+					var label:mx.controls.Label = new mx.controls.Label();
+					var hbox:HBox = new HBox();
+					hbox.y = currentY;
+					
+					
+					hbox.addChild(label);					
+					label.setStyle("fontFamily","Courier New");
+					label.setStyle("fontSize","14");
+					label.setStyle("fontWeight","bold");
+					label.percentWidth = 100;
+					label.height = LABEL_HEIGHT;
+					if(i % 2 == 0){
+						//si la fila es par le pongo un background color
+						hbox.setStyle("backgroundColor",ROWS_BACKGROUND_COLOR);
+					}
+					
+					//Ahora construyo el array temporal para ver luego donde poner los espacios y eso
+					var tempArray:Array = new Array();
+					for(var j:int=0;j<sequence.length;j++){
+						tempArray.push(" ");
+					}
+					var positions:XMLList = currentWipResult.positions.wip_position;
+					for each(var position:XML in positions){
+						var patternPosition:int = parseInt(position.pattern_position[0]);
+						var wordText:String = position.word_text[0];
+						for(var counter:int = patternPosition - 1;counter < (patternPosition - 1 + wordText.length);counter++){
+							tempArray[counter] = sequence.charAt(counter);
+						}
+					}
+					
+					var labelText:String = "";
+					for(var letterIndex:int = 0; letterIndex < tempArray.length;letterIndex++){
+						labelText += tempArray[letterIndex];
+					}
+					
+					label.text = labelText;
+						
+					
+					
+					proteinValuesVBox.addChild(hbox);
+					
+					var nameLabel:mx.controls.Label = new mx.controls.Label();
+					nameLabel.setStyle("fontFamily","Courier New");
+					nameLabel.setStyle("fontSize","14");
+					nameLabel.height = LABEL_HEIGHT;
+					nameLabel.text = currentWipResult.region_b.region.id[0];
+					
+					var hbox2:HBox = new HBox();
+					hbox2.y = currentY;
+					hbox2.addChild(nameLabel);
+					if(i % 2 == 0){
+						//si la fila es par le pongo un background color
+						hbox2.setStyle("backgroundColor",ROWS_BACKGROUND_COLOR);
+					}
+					proteinNamesVBox.addChild(hbox2);
+					
+					
+					currentY += LABEL_HEIGHT;
+					
+				}
+							
+				
+				
+			}
+
+
+			protected function proteinNamesVBox_scrollHandler(event:ScrollEvent):void
+			{
+				proteinValuesVBox.verticalScrollPosition = proteinNamesVBox.verticalScrollPosition;
+			}
+
+
+			protected function proteinValuesVBox_scrollHandler(event:ScrollEvent):void
+			{
+				proteinNamesVBox.verticalScrollPosition = proteinValuesVBox.verticalScrollPosition;
+				sequenceHBox.horizontalScrollPosition = proteinValuesVBox.horizontalScrollPosition;
+			}
+
+
+			protected function sequenceHBox_scrollHandler(event:ScrollEvent):void
+			{
+				proteinValuesVBox.horizontalScrollPosition = sequenceHBox.horizontalScrollPosition;
+			}
+			
+
+
+			protected function sequenceTextInput_mouseUpHandler(event:MouseEvent):void
+			{
+				if(sequenceTextInput.selectionEndIndex - sequenceTextInput.selectionBeginIndex > 0){
+					selectionFromLabel.text = "" + (sequenceTextInput.selectionBeginIndex + 1);
+					selectionToLabel.text = "" + sequenceTextInput.selectionEndIndex;				
+				}
+			}
+
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<mx:HDividedBox left="10" right="10" top="10" bottom="80">
+		<mx:VBox width="20%" height="100%" verticalScrollPolicy="off" horizontalScrollPolicy="off">
+			<mx:Canvas id="proteinNamesVBox" 
+					 scroll="proteinNamesVBox_scrollHandler(event)" 
+					 left="0" right="0" top="0" bottom="40" 
+					 horizontalScrollPolicy="on" verticalScrollPolicy="on" height="100%" width="100%">				
+			</mx:Canvas>
+			<mx:Spacer height="{sequenceHBox.height}"/>
+		</mx:VBox>		
+		<mx:VBox width="600" height="100%" verticalScrollPolicy="off" horizontalScrollPolicy="off">
+			<mx:Canvas id="proteinValuesVBox" 
+					 scroll="proteinValuesVBox_scrollHandler(event)" 
+					 bottom="40" top="0" left="0" right="0" 
+					 horizontalScrollPolicy="on" verticalScrollPolicy="on" width="100%" height="100%">				
+			</mx:Canvas>
+			<mx:Canvas verticalScrollPolicy="off" horizontalScrollPolicy="on" 
+					 scroll="sequenceHBox_scrollHandler(event)" id="sequenceHBox" width="100%">
+				<mx:TextInput fontFamily="Courier New" fontSize="14" id="sequenceTextInput" 
+							  bottom="0" left="0" editable="false" borderVisible="false"
+							  mouseUp="sequenceTextInput_mouseUpHandler(event)"/>
+			</mx:Canvas>
+			
+		</mx:VBox>
+		
+	</mx:HDividedBox>
+	<mx:Panel height="65" left="10" right="10" bottom="10" headerHeight="10" 
+			  paddingLeft="5" paddingRight="5" paddingBottom="5" paddingTop="5">
+		<s:HGroup width="100%">
+			<s:Label text="Selection from:" fontWeight="bold"/>
+			<s:Label id="selectionFromLabel"/>
+		</s:HGroup>
+		<s:HGroup width="100%">
+			<s:Label text="Selection to:" fontWeight="bold"/>
+			<s:Label id="selectionToLabel"/>
+		</s:HGroup>
+	</mx:Panel>
+</mx:TitleWindow>

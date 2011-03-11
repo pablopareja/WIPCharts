@@ -1,0 +1,354 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" 
+					   xmlns:s="library://ns.adobe.com/flex/spark" 
+					   xmlns:mx="library://ns.adobe.com/flex/mx"
+					   creationComplete="onCreationComplete()" 
+					   xmlns:search="com.era7.util.gui.search.*" backgroundColor="#E6E6E6">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<fx:Script>
+		<![CDATA[
+			import com.era7.util.debug.Debugger;
+			import com.era7.util.events.SearchBarEvent;
+			
+			import mx.controls.Alert;
+			import mx.events.ListEvent;
+			
+			import org.osmf.proxies.ListenerProxyElement;
+			
+			
+			protected var file:File  = null;
+			
+			[Bindable]
+			protected var xml:XML = null;
+			protected var regionA:XML = null;
+			[Bindable]
+			protected var currentWipResult:XML = null;
+			
+			
+			[Bindable]
+			[Embed(source="../assets/search.png")]
+			protected var searchIcon:Class;
+			
+			[Bindable]
+			[Embed(source="../assets/nextPage.png")]
+			protected var nextResultIcon:Class;
+
+			[Bindable]
+			[Embed(source="../assets/previousPage.png")]
+			protected var previousResultIcon:Class;
+			
+			/*
+			*	ON CREATION COMPLETE
+			*/
+			protected function onCreationComplete():void
+			{
+				file = new File();
+				file.addEventListener(Event.SELECT,onSelectFile);
+				
+				dataGridSearchBar.addEventListener(SearchBarEvent.SEARCH,onSearch);
+				dataGridSearchBar.addEventListener(SearchBarEvent.GO_TO_ELEMENT,onGoToElement);
+				
+				dataGridSeleccionadasSearchBar.addEventListener(SearchBarEvent.SEARCH,onSearchSeleccionadas);
+				dataGridSeleccionadasSearchBar.addEventListener(SearchBarEvent.GO_TO_ELEMENT,onGoToElementSeleccionadas);
+				
+			}
+			
+			protected function onSearch(event:SearchBarEvent):void{
+				var items:XMLList = XMLList(dataGrid.dataProvider).(name() == "wip_result");
+				
+				var results:Array = new Array();
+				var list:XMLList = XMLList(items..region_b.region.(id.text().toUpperCase().indexOf(event.getSearchText().toUpperCase()) >=0 ));
+				for each(var tempXML:XML in list){
+					results.push(tempXML.id[0].toString());
+				}
+				dataGridSearchBar.setResults(results);
+				
+			}			
+			protected function onGoToElement(event:SearchBarEvent):void{				
+				var list:XMLList = XMLList(dataGrid.dataProvider).(name() == "wip_result");
+				var found:Boolean = false;
+				for(var i:int=0;i<list.length() && !found;i++){
+					if(list[i].region_b.region.id[0].toString() == event.getSearchText()){
+						dataGrid.selectedIndex = i;	
+						dataGrid.scrollToIndex(i);
+						updateRegionBForm(dataGrid);
+						found = true;
+					}
+				}				
+			}
+			
+			protected function onSearchSeleccionadas(event:SearchBarEvent):void{
+				var items:XMLList = XMLList(dataGridSeleccionadas.dataProvider).(name() == "wip_result");
+				
+				var results:Array = new Array();
+				var list:XMLList = XMLList(items..region_b.region.(id.text().toUpperCase().indexOf(event.getSearchText().toUpperCase()) >=0 ));
+				for each(var tempXML:XML in list){
+					results.push(tempXML.id[0].toString());
+				}
+				dataGridSeleccionadasSearchBar.setResults(results);
+				
+			}			
+			protected function onGoToElementSeleccionadas(event:SearchBarEvent):void{				
+				var list:XMLList = XMLList(dataGridSeleccionadas.dataProvider).(name() == "wip_result");
+								
+				var found:Boolean = false;
+				for(var i:int=0;i<list.length() && !found;i++){
+					if(list[i].region_b.region.id[0].toString() == event.getSearchText()){
+						dataGridSeleccionadas.selectedIndex = i;	
+						dataGridSeleccionadas.scrollToIndex(i);
+						updateRegionBForm(dataGridSeleccionadas);
+						found = true;
+					}
+				}				
+			}
+			
+			
+			protected function onSelectFile(event:Event):void{
+				
+				selectedFileTextInput.text = file.nativePath;
+				
+				var fileStream:FileStream = new FileStream();
+				fileStream.open(file, FileMode.READ);
+				
+				var fileContents:String = fileStream.readUTFBytes(fileStream.bytesAvailable);
+				fileStream.close();
+				
+				xml = new XML(fileContents);
+				
+				//obtencion y seteo de datos de la region a
+				regionA = xml.wip_result[0].region_a[0].region[0];
+				regionAIdLabel.text = regionA.id.toString();
+				regionASequenceTextArea.text = regionA.sequence.toString();
+				
+				dataGridSeleccionadas.dataProvider = null;
+				
+				
+			}
+			
+			
+
+			protected function browseButtonMuestra1_clickHandler(event:MouseEvent):void
+			{
+				file.browse([new FileFilter("archivos xml: ","*.xml")]);
+			}
+			
+			
+			protected function regionBIdLabelFunction(item:Object, column:DataGridColumn):String{
+				var temp:XML = XML(item);
+				return temp.region_b.region.id.toString();
+			}
+
+
+			protected function dataGrid_itemClickHandler(event:ListEvent):void
+			{
+				var dg:DataGrid = DataGrid(event.target);
+				updateRegionBForm(dg);				
+				
+			}
+			protected function updateRegionBForm(dg:DataGrid):void{
+				if(dg.selectedItem != null){
+					regionBIdLabel.text = dg.selectedItem.region_b.region.id.toString();
+					regionBSequenceTextArea.text = dg.selectedItem.region_b.region.sequence.toString();
+					
+					currentWipResult = XML(dg.selectedItem);
+				}
+			}
+
+
+			protected function exportarButton_clickHandler(event:MouseEvent):void
+			{
+				if(fileNameTextInput.text == ""){
+					Alert.show("Type a .xml file name");
+				}else{
+					
+					var outFile:File = File.desktopDirectory.resolvePath(fileNameTextInput.text);
+					//outFile = outFile.resolvePath();
+					var fileStream:FileStream = new FileStream();
+					fileStream.open(outFile,FileMode.WRITE);
+					
+					var items:XMLList = XMLList(dataGridSeleccionadas.dataProvider);
+					//Alert.show(items.length());
+					
+					if(items == null){
+						Alert.show("The selected protein set is empty");
+					}else{
+						 var xmlResult:XML = <wip_results/>;
+						for(var i:int=0;i<items.length();i++){
+							var temp:XML = XML(items[i]);
+							if(temp.name() == "wip_result"){
+								xmlResult.appendChild(temp);
+							}							
+						}
+						
+						//Alert.show(xmlResult.children().length());
+						
+						fileStream.writeUTFBytes(xmlResult.toXMLString());
+						fileStream.close();
+						
+						Alert.show("File created successfully!");
+					}
+					
+					
+				}
+				
+				
+			}
+			
+			
+			
+			
+			protected function genericNumberSortFunction(obj1:Object,obj2:Object,tagName:String):int{
+				var xml1:XML = XML(obj1);
+				var xml2:XML = XML(obj2);
+				
+				var n1:Number = Number(xml1.child(tagName)[0]);
+				var n2:Number = Number(xml2.child(tagName)[0]);
+				if(n1 < n2){
+					return -1;
+				}else if(n1 == n2){
+					return 0;
+				}else{
+					return 1;
+				}
+			}
+			
+			protected function statisticValueSortCompareFunction(obj1:Object,obj2:Object):int{
+				return genericNumberSortFunction(obj1,obj2,"statistic_value");			
+			}
+			protected function absoluteFrequencySortCompareFunction(obj1:Object,obj2:Object):int{
+				return genericNumberSortFunction(obj1,obj2,"absolute_frequency");			
+			}
+			protected function wordLengthSortCompareFunction(obj1:Object,obj2:Object):int{
+				return genericNumberSortFunction(obj1,obj2,"word_length");			
+			}
+			protected function textPositionSortCompareFunction(obj1:Object,obj2:Object):int{
+				return genericNumberSortFunction(obj1,obj2,"text_position");			
+			}
+			protected function patternPositionSortCompareFunction(obj1:Object,obj2:Object):int{
+				return genericNumberSortFunction(obj1,obj2,"pattern_position");			
+			}
+			
+
+
+			protected function visualizarSecuenciaButton_clickHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+			}
+
+		]]>
+	</fx:Script>
+	<mx:VDividedBox left="10" top="10" bottom="10" right="10">
+		<s:VGroup width="100%">
+			<s:HGroup verticalAlign="middle" width="100%">
+				<mx:Label text="File :" fontWeight="bold"/>
+				<mx:TextInput width="100%" editable="false" id="selectedFileTextInput"/>
+				<mx:Button label="Browse" id="browseButtonMuestra1" 
+						   click="browseButtonMuestra1_clickHandler(event)"/>
+			</s:HGroup>
+			<s:HGroup width="100%" verticalAlign="middle">
+				<s:Label text="Region A:" fontWeight="bold"/>
+				<s:Label text="&#xd;" id="regionAIdLabel"/>
+			</s:HGroup>
+			<s:TextArea width="100%" height="100" id="regionASequenceTextArea"/>
+		</s:VGroup>	
+		<s:VGroup width="100%" height="100%">
+			<mx:HDividedBox width="100%" height="100%">
+				<s:VGroup width="100%" height="100%">
+					<search:SearchBar width="100%" id="dataGridSearchBar"
+									  searchIcon="{searchIcon}"
+									  nextResultIcon="{nextResultIcon}"
+									  previousResultIcon="{previousResultIcon}" backgroundColor="#395F6C" cornerRadius="10" color="#FFFFFF">
+					</search:SearchBar>
+					<mx:DataGrid id="dataGrid" width="100%" height="100%"
+								 dataProvider="{xml.wip_result}" 
+								 itemClick="dataGrid_itemClickHandler(event)"
+								 allowMultipleSelection="true" 
+								 dragEnabled="true" 
+								 dropEnabled="true"
+								 dragMoveEnabled="true">
+						<mx:columns>
+							<mx:DataGridColumn headerText="ID" 
+											   labelFunction="regionBIdLabelFunction"/>
+							<mx:DataGridColumn headerText="Statistic value" 
+											   dataField="statistic_value"
+											   sortCompareFunction="statisticValueSortCompareFunction"
+											   width="90"/>
+							<mx:DataGridColumn headerText="Absolute frequency" 
+											   dataField="absolute_frequency"
+											   sortCompareFunction="absoluteFrequencySortCompareFunction"
+											   width="100"/>
+							<mx:DataGridColumn headerText="Real case" 
+											   dataField="real_case"
+											   width="70"/>
+						</mx:columns>
+					</mx:DataGrid>
+				</s:VGroup>
+				<s:VGroup width="100%" height="100%">
+					<search:SearchBar id="dataGridSeleccionadasSearchBar" width="100%"
+									  searchIcon="{searchIcon}"
+									  nextResultIcon="{nextResultIcon}"
+									  previousResultIcon="{previousResultIcon}" backgroundColor="#395F6C" cornerRadius="10" color="#FFFFFF">
+					</search:SearchBar>
+					<mx:DataGrid id="dataGridSeleccionadas" 
+								 width="100%" height="100%" itemClick="dataGrid_itemClickHandler(event)"
+								 allowMultipleSelection="true" 
+								 dragEnabled="true" 
+								 dropEnabled="true" 
+								 dragMoveEnabled="true">
+						<mx:columns>
+							<mx:DataGridColumn headerText="ID" 
+											   labelFunction="regionBIdLabelFunction"/>
+							<mx:DataGridColumn headerText="Statistic value" 
+											   dataField="statistic_value"
+											   sortCompareFunction="statisticValueSortCompareFunction"
+											   width="90"/>
+							<mx:DataGridColumn headerText="Absolute frequency" 
+											   dataField="absolute_frequency"
+											   sortCompareFunction="absoluteFrequencySortCompareFunction"
+											   width="100"/>
+							<mx:DataGridColumn headerText="Real case" 
+											   dataField="real_case"
+											   width="70"/>
+						</mx:columns>
+					</mx:DataGrid>
+				</s:VGroup>
+			</mx:HDividedBox>				
+			<s:HGroup width="100%" verticalAlign="middle">
+				<s:Label text="Export selected proteins to a new file:" fontWeight="bold"/>
+				<s:TextInput width="100%" id="fileNameTextInput"/>
+				<s:Button label="Export" id="exportarButton" click="exportarButton_clickHandler(event)"/>
+			</s:HGroup>
+		</s:VGroup>			
+		<s:Panel width="100%" height="100%" title="Region B" chromeColor="#395F6C" color="#FFFFFF">
+			<s:layout>
+				<s:VerticalLayout paddingLeft="10" paddingRight="10" paddingTop="10" paddingBottom="10"/>
+			</s:layout>
+			<s:HGroup x="65" y="10" width="100%" verticalAlign="middle" color="#000000">
+				<s:Label text="ID:" fontWeight="bold"/>
+				<mx:Label id="regionBIdLabel" selectable="true"/>
+			</s:HGroup>
+			<s:TextArea width="100%" height="80" id="regionBSequenceTextArea" color="#000000"/>
+			<mx:DataGrid id="positionsDataGrid" width="100%" height="100%"
+						 dataProvider="{currentWipResult.positions.wip_position}">
+				<mx:columns>
+					<mx:DataGridColumn headerText="Pattern position" 
+									   dataField="pattern_position"
+									   sortCompareFunction="patternPositionSortCompareFunction"/>
+					<mx:DataGridColumn headerText="Word length" 
+									   dataField="word_length"
+									   sortCompareFunction="wordLengthSortCompareFunction"/>
+					<mx:DataGridColumn headerText="Text position" 
+									   dataField="text_position"
+									   sortCompareFunction="textPositionSortCompareFunction"/>
+					<mx:DataGridColumn headerText="Word text pattern" dataField="word_text_pattern"/>
+					<mx:DataGridColumn headerText="Word text" dataField="word_text"/>
+				</mx:columns>
+			</mx:DataGrid>
+		</s:Panel>
+	</mx:VDividedBox>
+	<!--<s:VGroup left="10" top="10" bottom="10" right="10">		
+				
+	</s:VGroup>-->
+</s:WindowedApplication>
